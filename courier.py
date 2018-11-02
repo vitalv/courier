@@ -9,16 +9,30 @@ from sklearn.neighbors import KNeighborsRegressor
 lifetime = pd.read_csv('Courier_lifetime_data.csv')
 weekly = pd.read_csv('Courier_weekly_data.csv')
 
+plt.hist(lifetime.feature_2)
+
+
+
+# keep only data within +3 to -3 standard deviations 
+outliers_ix = lifetime.index[np.abs(lifetime.feature_2-lifetime.feature_2.mean()) >= (3*lifetime.feature_2.std())]
+lifetime.loc[outliers_ix, 'feature_2'] = np.NaN
+
 
 #1st find couriers that do have weekly data to inspect the distributions
-merge = pd.merge(lifetime, weekly, on='courier', how='left') #.to_csv('merge.csv')
+merge = pd.merge(lifetime, weekly, on='courier', how='right') #.to_csv('merge.csv')
+
+#Then get the complete dataset. Lots of couriers will have lifetime data but no weekly data:
+merge_all = pd.merge(lifetime, weekly, on='courier', how='left') #.to_csv('merge.csv')
+
+
+#Plot distributions to chech whether lifetime categories a, b, c, d are related to the distribution of the weekly features
 
 a = merge.loc[merge.feature_1_x=='a']
 b = merge.loc[merge.feature_1_x=='b']
 c = merge.loc[merge.feature_1_x=='c']
 d = merge.loc[merge.feature_1_x=='d']
 
-features = ['feature_1_y', 'feature_2_y', 'feature_3',
+weekly_features = ['feature_1_y', 'feature_2_y', 'feature_3',
        'feature_4', 'feature_5', 'feature_6', 'feature_7',
        'feature_8', 'feature_9', 'feature_10', 'feature_11',
        'feature_12', 'feature_13', 'feature_14', 'feature_15',
@@ -28,12 +42,12 @@ fig, axes = plt.subplots(9, 2, figsize=(20,30))
 
 ax = axes.flatten() #ravel()
 
-for i in range(len(features)):
-    ax[i].hist(a.ix[:,features[i]], bins=20, color='red', alpha=.5)
-    ax[i].hist(b.ix[:,features[i]], bins=20, color='green', alpha=.5)
-    ax[i].hist(c.ix[:,features[i]], bins=20, color='blue', alpha=.5)
-    ax[i].hist(d.ix[:,features[i]], bins=20, color='yellow', alpha=.5)
-    ax[i].set_title(features[i], fontsize=18)
+for i in range(len(weekly_features)):
+    ax[i].hist(a.ix[:,weekly_features[i]], bins=20, color='red', alpha=.5)
+    ax[i].hist(b.ix[:,weekly_features[i]], bins=20, color='green', alpha=.5)
+    ax[i].hist(c.ix[:,weekly_features[i]], bins=20, color='blue', alpha=.5)
+    ax[i].hist(d.ix[:,weekly_features[i]], bins=20, color='yellow', alpha=.5)
+    ax[i].set_title(weekly_features[i], fontsize=18)
     ax[i].set_yticks(())
     
 ax[0].set_xlabel("Feature distribution")
@@ -44,33 +58,69 @@ plt.show()
 
 
 
-#Use KNN for missing value imputation based on lifetime data: feature_1 and feature_2:
-
-#First impute feature_2 ( Do this separately for a, b, c and d ? Or )
-#Then I can use both feature 1 and 2 from lifetime to impute the weekly features
-
-#create training and target sets for subset a:
-X = np.matrix(a.dropna()[features])
-y = np.matrix(a['feature_2_x'].dropna())
-
-#k = 5 by default
-regr = KNeighborsRegressor().fit(X, y.transpose())
-feature_2_x_ = regr.predict(np.matrix(a[features]))#[:, 'feature_2_x']
-a['feature_2_x_'] = [int(i) for i in feature_2_x_]
 
 
-'''
-for f1x in [a, b, c, d ]:
-	X = np.matrix(f1x.dropna()[features])
-	y = np.matrix(f1x['feature_2_x'].dropna())
-'''	
 
-
-#Do it for the merge data (subset of couriers in lifetime data that have weekly data):
-X = np.matrix(merge.dropna()[features])
+#First knn-predict lifetime.feature_2 . I can only do this for couriers with weekly features 
+#First create train X and target y
+X = np.matrix(merge.dropna()[weekly_features]) #will remove rows with missing feature_2_x 
 y = np.matrix(merge['feature_2_x'].dropna())
 
 #k = 5 by default
 regr = KNeighborsRegressor().fit(X, y.transpose())
-feature_2_x_ = regr.predict(np.matrix(merge[features]))#[:, 'feature_2_x']
+feature_2_x_ = regr.predict(np.matrix(merge[weekly_features]))#[:, 'feature_2_x']
 merge['feature_2_x_'] = [int(i) for i in feature_2_x_]
+
+
+'''
+#Do the same knn-prediction of feature_2_x for subsets a, b, c, d:
+X = np.matrix(a.dropna()[weekly_features])
+y = np.matrix(a['feature_2_x'].dropna())
+
+#k = 5 by default
+regr = KNeighborsRegressor().fit(X, y.transpose())
+feature_2_x_ = regr.predict(np.matrix(a[weekly_features]))#[:, 'feature_2_x']
+a['feature_2_x_'] = [int(i) for i in feature_2_x_]
+'''
+
+
+#Replace the missing values in feature_2_x with the knn-predicted feature_2_x_ values
+missing_f2_ix = merge.index[merge.feature_2_x.isnull()]
+predicted_f2  = merge[merge.feature_2_x.isnull()].feature_2_x_
+merge.loc[missing_f2_ix, 'feature_2_x'] = predicted_f2
+
+#Note: the predicted feature_2_x values will be different for same courier! Is this right?
+
+#Find the couriers in merge_all and replace the missing feature_2 values with the predicted one
+#(will only affect the missing feature_2_x for the couriers that have weekly data)
+merge.loc[missing_f2_ix, 'courier']
+
+
+
+#Find a way to predict weekly features for those couriers who don't have weekly data
+#The only lifetime feature ALL couriers have is feature_1: a, b, c, d
+#Can't use KNN in those cases 
+#Impute missing values with average or median values per group a, b, c, d
+
+frames = []
+for f1 in list(set(merge_all.feature_1_x)):
+  df = merge_all.loc[merge_all.feature_1_x==f1]
+  df = df.fillna(df[weekly_features].dropna().median())
+  frames.append(df)
+data = pd.concat(frames)
+
+
+
+
+#With the imputed data I can now knn-predict features
+X = np.matrix(data[data['feature_2_x'].isnull()==False][weekly_features])
+y = np.matrix(data['feature_2_x'].dropna())
+
+#k = 5 by default
+regr = KNeighborsRegressor().fit(X, y.transpose())
+feature_2_x_ = regr.predict(np.matrix(data[weekly_features]))#[:, 'feature_2_x']
+data['feature_2_x_'] = [int(i) for i in feature_2_x_]
+#Replace the missing values in feature_2_x with the knn-predicted feature_2_x_ values
+missing_f2_ix = merge.index[merge.feature_2_x.isnull()]
+predicted_f2  = merge[merge.feature_2_x.isnull()].feature_2_x_
+merge.loc[missing_f2_ix, 'feature_2_x'] = predicted_f2
