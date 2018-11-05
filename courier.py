@@ -25,7 +25,7 @@ merge = pd.merge(lifetime, weekly, on='courier', how='right') #.to_csv('merge.cs
 merge_all = pd.merge(lifetime, weekly, on='courier', how='left') #.to_csv('merge.csv')
 
 
-#Plot distributions to chech whether lifetime categories a, b, c, d are related to the distribution of the weekly features
+#Plot distributions to check whether lifetime categories a, b, c, d are related to the distribution of the weekly features
 
 a = merge.loc[merge.feature_1_x=='a']
 b = merge.loc[merge.feature_1_x=='b']
@@ -111,11 +111,11 @@ merge.loc[missing_f2_ix, 'courier']
 
 
 #Impute missing values with combinations of feature_1_x and feature_2_x
-#For example, of 103 couriers with feature1: a, feature2: 31.0 
+#For example, of 103 couriers with feature1 == a, and feature2 == 31.0 
 #43 of them have weekly data. Impute the remaining 60 ones with the median of the 43
 
-#Note I can impute weekly features like this.
-#But not week, since it's not a continuous variable
+#Note I can predict weekly features like this (with KNNRegressor)
+#But not week, since it's not a continuous variable (KNNClassifier)
 
 list_f1 = list(set(merge_all.feature_1_x))
 list_f2 = list(set(merge_all[merge_all.feature_2_x.notnull()].feature_2_x))
@@ -127,7 +127,7 @@ for f1 in list_f1:
     if len(df.dropna())>0: #some feature 1, feature 2 combinations don't have weekly data
       df = df.fillna(df[weekly_features].dropna().median())
       frames.append(df)
-    else:
+    else: #if feature_1_x + feature_2_x don't have weekly data, use the meadian of the f1 group
       df = df.fillna(merge_all.loc[merge_all.feature_1_x==f1].dropna().median())
       frames.append(df)
 #And then for the 1227 couriers that have feature_1 but no feature_2 just impute the median of the category a, b, c, d
@@ -155,7 +155,7 @@ predicted_f2  = data[data.feature_2_x.isnull()].feature_2_x_
 data.loc[missing_f2_ix, 'feature_2_x'] = predicted_f2
 
 
-#Do not predict week. Couriers with missing values for weeks 9, 10 and 11 will be removed
+#Do not predict week here. Couriers with missing values for weeks 9, 10 and 11 will be removed
 '''
 X = np.matrix(data[data.week.notnull()][weekly_features])
 y = np.matrix(data.week.dropna()).T
@@ -170,3 +170,59 @@ data.loc[missing_week_ix, 'week'] = predicted_week
 
 sb.pairplot(data[weekly_features], kind='reg')
 plt.show()
+
+
+
+
+#Label data. If a specific courier’s week 9, 10 and 11 data is not provided, we label this
+#courier as “1” otherwise “0”. After labeling, remove week 8(Yes including 8!), 9, 10 and 11 data to
+#avoid bias in your next task
+
+data['label'] = ''*len(data)
+
+last_weeks = [9,10,11]
+
+grouped = data.groupby('courier')
+
+couriers1 = list(set(grouped.filter(lambda x: x.week.max() < 9).courier))
+couriers0 = list(set(grouped.filter(lambda x: x.week.max() >= 9).courier))
+
+
+data.loc[data[data.courier.isin(couriers1)].index, 'label'] = 1
+data.loc[data[data.courier.isin(couriers0)].index, 'label'] = 0
+
+#there are a lot of couriers that don't have week data (bc they didn't have weekly data at all). Label those 1
+data.loc[data[data.label==''].index, 'label'] = 1 
+
+data = data[data.week < 8]
+
+
+
+#create a logistic regression model that classifies the previous labels
+#Create a logistic regression model by using Python or R. 
+#You are free to choose your algorithm and libraries / packages to use.
+#Finally, tune your hyper-parameters of your model by randomized search, grid search or any other
+#search method and explain your reasoning for this choice.
+
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+
+x_train, x_test, y_train, y_test = train_test_split(data[weekly_features], data.label, test_size=0.25, random_state=0)
+
+#1st try default parameters
+logisticRegr = \
+LogisticRegression(C=1.0, class_weight=None, dual=False, fit_intercept=True,
+          intercept_scaling=1, max_iter=100, multi_class='ovr', n_jobs=1,
+          penalty='l2', random_state=None, solver='liblinear', tol=0.0001,
+          verbose=0, warm_start=False)
+
+logisticRegr.fit(x_train, y_train)
+
+predictions = logisticRegr.predict(x_test)
+
+
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+
+print(confusion_matrix(y_test,predictions))
+print(classification_report(y_test, predictions))
+print(accuracy_score(y_test,predictions))
