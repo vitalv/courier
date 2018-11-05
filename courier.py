@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 import seaborn as sb 
 sb.set_style("whitegrid", {'axes.grid' : False})
 from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
 
 lifetime = pd.read_csv('Courier_lifetime_data.csv')
@@ -12,10 +15,11 @@ weekly = pd.read_csv('Courier_weekly_data.csv')
 plt.hist(lifetime.feature_2)
 
 
-
-# keep only data within +3 to -3 standard deviations 
+# keep only data within +3 to -3 standard deviations
 outliers_ix = lifetime.index[np.abs(lifetime.feature_2-lifetime.feature_2.mean()) >= (3*lifetime.feature_2.std())]
 lifetime.loc[outliers_ix, 'feature_2'] = np.NaN
+for c in weekly.columns[2:]:
+  outliers_ix = weekly.index[np.abs(weekly[c]-weekly[c].mean()) >= (3*weekly[c].std())]
 
 
 #1st find couriers that do have weekly data to inspect the distributions
@@ -32,21 +36,17 @@ b = merge.loc[merge.feature_1_x=='b']
 c = merge.loc[merge.feature_1_x=='c']
 d = merge.loc[merge.feature_1_x=='d']
 
-weekly_features = ['feature_1_y', 'feature_2_y', 'feature_3',
-       'feature_4', 'feature_5', 'feature_6', 'feature_7',
-       'feature_8', 'feature_9', 'feature_10', 'feature_11',
-       'feature_12', 'feature_13', 'feature_14', 'feature_15',
-       'feature_16', 'feature_17']
+weekly_features = merge.columns[4:] 
 
 fig, axes = plt.subplots(9, 2, figsize=(20,30))
 
 ax = axes.flatten() #ravel()
 
 for i in range(len(weekly_features)):
-    ax[i].hist(a.ix[:,weekly_features[i]], bins=20, color='red', alpha=.5)
-    ax[i].hist(b.ix[:,weekly_features[i]], bins=20, color='green', alpha=.5)
-    ax[i].hist(c.ix[:,weekly_features[i]], bins=20, color='blue', alpha=.5)
-    ax[i].hist(d.ix[:,weekly_features[i]], bins=20, color='yellow', alpha=.5)
+    ax[i].hist(a.ix[:,weekly_features[i]], bins=20, color='red', alpha=.7)
+    ax[i].hist(b.ix[:,weekly_features[i]], bins=20, color='green', alpha=.7)
+    ax[i].hist(c.ix[:,weekly_features[i]], bins=20, color='blue', alpha=.7)
+    ax[i].hist(d.ix[:,weekly_features[i]], bins=20, color='yellow', alpha=.7)
     ax[i].set_title(weekly_features[i], fontsize=18)
     ax[i].set_yticks(())
     
@@ -100,8 +100,6 @@ merge.loc[missing_f2_ix, 'feature_2_x'] = predicted_f2
 merge.loc[missing_f2_ix, 'courier']
 
 '''
-
-
 
 
 
@@ -180,13 +178,10 @@ plt.show()
 
 data['label'] = ''*len(data)
 
-last_weeks = [9,10,11]
-
 grouped = data.groupby('courier')
 
 couriers1 = list(set(grouped.filter(lambda x: x.week.max() < 9).courier))
 couriers0 = list(set(grouped.filter(lambda x: x.week.max() >= 9).courier))
-
 
 data.loc[data[data.courier.isin(couriers1)].index, 'label'] = 1
 data.loc[data[data.courier.isin(couriers0)].index, 'label'] = 0
@@ -204,8 +199,6 @@ data = data[data.week < 8]
 #Finally, tune your hyper-parameters of your model by randomized search, grid search or any other
 #search method and explain your reasoning for this choice.
 
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
 
 x_train, x_test, y_train, y_test = train_test_split(data[weekly_features], data.label, test_size=0.25, random_state=0)
 
@@ -221,7 +214,6 @@ logisticRegr.fit(x_train, y_train)
 predictions = logisticRegr.predict(x_test)
 
 
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
 print(confusion_matrix(y_test,predictions))
 print(classification_report(y_test, predictions))
