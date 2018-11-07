@@ -7,6 +7,8 @@ from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.model_selection import RandomizedSearchCV 
+from sklearn.model_selection import GridSearchCV
 
 
 lifetime = pd.read_csv('Courier_lifetime_data.csv')
@@ -194,7 +196,6 @@ data = data[data.week < 8]
 
 
 #create a logistic regression model that classifies the previous labels
-#Create a logistic regression model by using Python or R. 
 #You are free to choose your algorithm and libraries / packages to use.
 #Finally, tune your hyper-parameters of your model by randomized search, grid search or any other
 #search method and explain your reasoning for this choice.
@@ -218,3 +219,49 @@ predictions = logisticRegr.predict(x_test)
 print(confusion_matrix(y_test,predictions))
 print(classification_report(y_test, predictions))
 print(accuracy_score(y_test,predictions))
+
+
+
+
+
+
+
+
+
+
+
+#default parameters
+knn_clf = KNeighborsClassifier(n_neighbors=5, weights='uniform', algorithm='auto',leaf_size=30, p=2, metric='minkowski', metric_params=None)
+#run the classifier with default params first
+knn_clf.fit(x_train, y_train)
+predictions = knn_clf.predict(x_test)
+print(confusion_matrix(y_test,predictions))
+
+print(classification_report(y_test, predictions))
+
+print(accuracy_score(y_test,predictions))
+
+
+
+
+
+
+
+params = {"n_neighbors": np.arange(1, 31, 2),
+          "metric": ["euclidean", "cityblock", "cosine"],
+          "weights":["uniform", "distance"]}#,
+          #"leaf_size": np.arange(20,41)}
+
+grid = GridSearchCV(knn_clf, params)
+grid.fit(x_train, y_train)
+grid.best_params_
+#{'metric': 'cosine', 'n_neighbors': 15, 'weights': 'uniform'}
+
+
+
+knn_clf = KNeighborsClassifier(n_neighbors=9, weights='uniform', algorithm='auto', leaf_size=30, p=2, metric='cosine', metric_params=None)
+knn_clf.fit(x_train, y_train)
+predictions = knn_clf.predict(x_test)
+print(confusion_matrix(y_test,predictions))
+
+ 
