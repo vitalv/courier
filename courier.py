@@ -225,6 +225,54 @@ print(accuracy_score(y_test,predictions))
 
 
 
+#Logistic Regression supports only liblinear, newton-cg, lbfgs, sag and saga solvers
+params = {'penalty': ['l1','l2'],
+          'C':   np.arange(0.1, 10, 0.1)}
+          
+grid = GridSearchCV(logisticRegr, params)
+grid.fit(x_train, y_train)
+print(grid.best_params_)
+#{'penalty': 'l2', 'C': 5.6}
+
+
+
+
+
+#Solvers newton-cg, lbfgs, sag and saga support only l2 penalties. GridSearch won't work with those combinations
+params = {'penalty': ['l2'], 
+          'C': [0.001,0.01,0.1,1,10,100,1000],
+          'solver': ['liblinear', 'lbfgs', 'sag', 'saga'],
+          'multi_class': ['ovr', 'multinomial', 'auto'],
+          'class_weight': [None, 'balanced']}
+grid = GridSearchCV(logisticRegr, params)
+grid.fit(x_train, y_train)
+print(grid.best_params_)
+          
+#Solver liblinear does not support a multinomial backend. Can't choose that option for multi_class
+
+'''
+{'tol': 1.3225, 'penalty': 'l1', 'C': 96.7694}
+
+   precision    recall  f1-score   support
+
+          0       0.60      0.80      0.69       479
+          1       0.61      0.38      0.47       406
+
+avg / total       0.61      0.61      0.59       885
+
+
+
+
+
+'''
+
+
+
+
+
+
+
+
 
 
 
